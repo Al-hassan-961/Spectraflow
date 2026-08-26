@@ -1,0 +1,6 @@
+Flask
+numpy
+# SciPy is OPTIONAL: the DSP engine falls back to pure NumPy automatically.
+# On Termux, scipy often fails to build for Android's Python — the tool is
+# fully functional without it.  Install only if you want it:
+#   pip install scipy

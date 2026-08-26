@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+scans.db
+scans.db-wal
+scans.db-shm
+spectraflow_smoke.log
