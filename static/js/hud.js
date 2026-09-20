@@ -12,7 +12,7 @@
  * zero width instead of producing `NaN`/`null` text.
  *
  * This module imports nothing but `config.js`, so the HUD still works when the
- * Three.js CDN is unreachable.
+ * rendering layer is unavailable.
  */
 
 import { APP, HUD, clamp, confidenceColor, damp, isFiniteNumber } from './config.js';

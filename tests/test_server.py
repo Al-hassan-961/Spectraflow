@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -19,7 +21,10 @@ from spectraflow.server import (
     create_app,
     create_asgi_app,
 )
-from spectraflow.server.app import SpectraflowServer
+from spectraflow.server.app import SpectraflowServer, _static_response
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_STATIC_ROOT = _REPO_ROOT / "static"
 
 
 def _config(**changes):
@@ -366,3 +371,61 @@ def test_app_factory_prefers_available_flavour_without_failing():
 
     explicit = create_asgi_app(server)
     assert callable(explicit)
+
+
+# ---------------------------------------------------------------------------
+# Offline readiness of the served page
+# ---------------------------------------------------------------------------
+
+
+def test_index_page_makes_no_external_requests():
+    """The UI must render with no internet access at all.
+
+    A page that silently depends on a CDN renders nothing useful when the
+    network is blocked, which is the normal state on the reference deployment.
+    Every asset, including Three.js, is therefore vendored and served locally.
+    """
+    html = (_REPO_ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    external = re.findall(r"https?://[^\s\"'<>)]+", html)
+    assert not external, f"index.html still requests remote URLs: {external}"
+
+
+def test_importmap_targets_exist_on_disk_and_are_served():
+    """Resolve the importmap the way a browser does and check every target."""
+    html = (_REPO_ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    match = re.search(
+        r'<script type="importmap">\s*(\{.*?\})\s*</script>', html, re.S
+    )
+    assert match, "index.html must declare an import map"
+    imports = json.loads(match.group(1))["imports"]
+
+    assert not any(v.startswith("http") for v in imports.values()), imports
+
+    # The specifiers the JavaScript actually uses.
+    for specifier in ("three", "three/addons/controls/OrbitControls.js"):
+        resolved = None
+        for key in sorted(imports, key=len, reverse=True):
+            if specifier.startswith(key):
+                resolved = imports[key] + specifier[len(key) :]
+                break
+        assert resolved, f"no import-map entry resolves {specifier!r}"
+
+        target = (_STATIC_ROOT / resolved.replace("./", "", 1)).resolve()
+        assert target.is_file(), f"{specifier!r} -> {resolved} does not exist"
+
+        # ...and that the server actually serves it.
+        relative = str(target.relative_to(_STATIC_ROOT.resolve()))
+        status, headers, body = _static_response("/" + relative)
+        assert status == 200, (specifier, status)
+        assert len(body) > 0
+
+
+def test_every_script_and_stylesheet_reference_is_served():
+    html = (_REPO_ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    refs = re.findall(r'(?:src|href)\s*=\s*["\']([^"\']+)["\']', html)
+    assert refs, "index.html should reference assets"
+    for ref in refs:
+        assert not ref.startswith("http"), ref
+        status, _, body = _static_response("/" + ref.lstrip("./"))
+        assert status == 200, ref
+        assert len(body) > 0, ref

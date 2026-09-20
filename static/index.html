@@ -10,12 +10,21 @@
 
   <link rel="stylesheet" href="./css/style.css" />
 
-  <!-- Three.js is loaded as an ES module straight from the CDN. -->
+  <!--
+    Three.js r169 is VENDORED into ./vendor/three/ and served by the Spectraflow
+    server, so the 3D view works with no internet access at all. That matters on
+    the reference deployment (a phone on Termux), where a page that silently
+    depends on a CDN renders nothing useful when the network is blocked.
+
+    The bare "three" specifier and the "three/addons/" prefix are mapped here so
+    the literal import statements inside the modules stay identical to the
+    upstream distribution -- vendoring never requires editing library code.
+  -->
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
     }
   }
   </script>
@@ -45,8 +54,8 @@
   <!--
     Boot watchdog.
     A classic (non-module) script so it also runs when the module graph fails to
-    load at all — for example if the Three.js CDN is unreachable. It guarantees
-    the user sees an explanation instead of a blank screen.
+    load at all — for example if the static assets are not being served. It
+    guarantees the user sees an explanation instead of a blank screen.
   -->
   <script>
   (function () {
@@ -82,7 +91,7 @@
       var message = (event && event.message) ? event.message : 'A script failed to load.';
       reveal(
         'Spectraflow could not start',
-        'A required script did not load. This usually means the browser is offline, the Three.js CDN is blocked, or this page was opened directly from the filesystem instead of being served by the Spectraflow server.',
+        'A required script did not load. This usually means the page was opened directly from the filesystem instead of being served by the Spectraflow server, or the server is not serving static assets.',
         message
       );
     }, true);
@@ -93,7 +102,7 @@
       if (!banner || !banner.hidden) return;
       reveal(
         'Spectraflow is taking too long to start',
-        'The interface modules have not finished loading. Check that this page is served over http(s) by the Spectraflow server and that cdn.jsdelivr.net is reachable, then reload.',
+        'The interface modules have not finished loading. Check that this page is served over http(s) by the Spectraflow server and that ./js/ and ./vendor/ are being served, then reload.',
         'No boot confirmation received within 9 seconds.'
       );
     }, 9000);

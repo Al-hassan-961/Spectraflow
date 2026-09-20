@@ -3,7 +3,7 @@
  * frame-rate independent math helpers.
  *
  * This module intentionally imports NOTHING (not even Three.js) so that it can
- * always be evaluated, even when the Three.js CDN is unreachable. `app.js` and
+ * always be evaluated, even when the WebGL layer fails to initialise. `app.js` and
  * `hud.js` depend on it directly; `scene.js` and `avatar.js` add Three.js on
  * top. Keeping the dependency-free layer separate is what makes the offline
  * error path in `app.js` possible.

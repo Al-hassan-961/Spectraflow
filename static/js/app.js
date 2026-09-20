@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *   - load Three.js and the rendering modules, surfacing a clear in-DOM banner
- *     when the CDN is unreachable instead of leaving a blank screen
+ *     when the renderer is unavailable instead of leaving a blank screen
  *   - own the WebSocket client (exponential backoff with jitter, auto-reconnect)
  *   - run the requestAnimationFrame loop and feed the renderers
  *   - decouple render rate from network rate: the newest frame wins and stale
@@ -11,7 +11,7 @@
  *   - drive the HUD and the live stats readout
  *
  * Startup is deliberately split: `config.js` and `hud.js` are static imports
- * because they have no CDN dependency, while Three.js, `scene.js` and
+ * because they carry no rendering dependency, while Three.js, `scene.js` and
  * `avatar.js` are pulled in with dynamic `import()` so a network failure is a
  * catchable rejection rather than a dead module graph.
  */
@@ -173,7 +173,7 @@ function boot() {
 
 /**
  * Import Three.js and the rendering modules. Any failure (offline, blocked
- * CDN, no import-map support, no WebGL) is reported in the DOM and leaves the
+ * vendored library missing, no import-map support, no WebGL) is reported in the DOM and leaves the
  * HUD + telemetry working.
  */
 async function loadRenderers() {
@@ -184,7 +184,7 @@ async function loadRenderers() {
   } catch (error) {
     showBanner(
       'Three.js could not be loaded',
-      'The 3D library is served from a CDN (cdn.jsdelivr.net) and could not be fetched, so the volumetric view is unavailable. Check the network connection, then reload. Telemetry and vitals below keep updating from the sensor.',
+      'The 3D library is served locally from ./vendor/three/ and could not be loaded. This usually means the page was opened directly from the filesystem instead of through the Spectraflow server, or the server is not serving static assets. Telemetry and vitals below keep updating from the sensor.',
       `import("three") failed: ${error && error.message ? error.message : String(error)}`,
     );
     return;

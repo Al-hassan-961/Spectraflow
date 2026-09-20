@@ -549,7 +549,7 @@ export function createScene(container, options = {}) {
 
   // Upgrade to the official OrbitControls when the addon is reachable. The
   // built-in controller above is already active, so a failed fetch (offline,
-  // blocked CDN, no import-map support) simply leaves it in place.
+  // unavailable addon, no import-map support) simply leaves it in place.
   if (typeof import.meta !== 'undefined') {
     import('three/addons/controls/OrbitControls.js')
       .then((addon) => {
