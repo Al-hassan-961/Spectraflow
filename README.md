@@ -68,49 +68,111 @@ automatically at import time.
 
 ## Install & run
 
-```bash
-pip install -r requirements.txt      # numpy + uvicorn, nothing else
-pip install -e .                     # optional: builds the native C++ core
-```
+`requirements.txt` installs only what the pipeline truly needs — NumPy and
+uvicorn — so it succeeds on every supported host. Everything else is an
+accelerator that is detected at import time; skipping any of it changes nothing
+but speed and which pose backend is used.
 
-`requirements.txt` installs only what the pipeline truly needs, so it succeeds
-on every supported host — including Termux, where `onnxruntime` and `fastapi`
-have no usable wheel. Those, and the native build, are commented out with their
-own install commands:
+What each platform ends up with:
+
+| | Linux | Termux (Android) |
+|---|---|---|
+| Native C++ core | ✅ builds | ✅ builds (auto-links `libpython`) |
+| Server | FastAPI *or* dependency-free ASGI | dependency-free ASGI |
+| Pose backend | ONNX Runtime **or** analytic | analytic |
+| Verdict | full feature set | fully functional, software fallbacks |
+
+---
+
+### Linux
+
+Works on any glibc/musl distro with Python ≥ 3.9. The native core needs a C++17
+compiler and Python headers.
 
 ```bash
+# Debian / Ubuntu
+sudo apt install python3 python3-pip python3-dev build-essential cmake
+
+# Fedora
+#   sudo dnf install python3 python3-devel gcc-c++ cmake make
+# Arch
+#   sudo pacman -S python python-pip base-devel cmake
+
+pip install -r requirements.txt
+
+# Optional, and both have wheels here:
 pip install pybind11 && pip install -e .   # native C++ core (faster DSP)
 pip install onnxruntime                    # real neural pose inference
 pip install fastapi                        # FastAPI flavour of the server
-pip install -e ".[native,onnx,fastapi,dev]"  # or all of them at once
 ```
 
-Each is detected at import time; skipping any of them changes nothing but speed
-and which pose backend is used.
-
-No ESP32 hardware? Run the built-in physics simulator:
+Run it — no hardware needed, this synthesises CSI:
 
 ```bash
 python -m spectraflow.server --simulate
-# open http://127.0.0.1:8000
 ```
 
-With hardware attached:
+With an ESP32 receiver streaming to UDP:
 
 ```bash
 python -m spectraflow.server --udp-port 5500 --port 8000
 ```
 
-(`python -m spectraflow.server.app` works identically, as does the
-`spectraflow` console script once the package is installed.)
+Then open <http://127.0.0.1:8000>.
 
-> **Opening it from another device?** The server binds `127.0.0.1` by default,
-> so it is reachable only from the host itself. To browse from a phone or
-> laptop on the same network, bind all interfaces:
-> `python -m spectraflow.server --simulate --host 0.0.0.0`, then browse to
-> `http://<host-lan-ip>:8000`.
+> If the native core fails to build for any reason, the install still succeeds
+> and prints a warning — the pure-NumPy path is used automatically.
+
+---
+
+### Termux (Android)
+
+Everything runs on-device, no root, no proot. Install the toolchain first —
+`clang` is required for the native core (`gcc` is not available).
+
+```bash
+pkg update && pkg upgrade
+pkg install python clang cmake make git binutils termux-api
+
+pip install -r requirements.txt
+pip install pybind11 && pip install -e .   # native C++ core
+```
+
+(`termux-api` supplies `termux-open-url` and `termux-wake-lock` used below; the
+server itself does not need it.)
+
+Then run it and open the page **in the phone's own browser**:
+
+```bash
+python -m spectraflow.server --simulate
+# in another Termux session, or just tap the link:
+termux-open-url http://127.0.0.1:8000
+```
+
+Two Android-specific behaviours are handled automatically:
+
+* **The native core is linked against `libpython`.** Termux's Python does not
+  export its symbols to `dlopen`-ed extension modules, so a normally-linked
+  build succeeds but fails at import with
+  `cannot locate symbol "PyExc_ImportError"`. Both `setup.py` and
+  `CMakeLists.txt` detect Android and link `libpython` explicitly. If you build
+  the extension yourself, add `-lpython3.x`.
+* **Do not try to install `onnxruntime` or `fastapi`.** Neither has a usable
+  Android/aarch64 wheel (`onnxruntime` publishes none at all; FastAPI's
+  `pydantic-core` dependency needs a Rust build that fails on Android). The
+  server serves a dependency-free ASGI application with identical routes and
+  payloads, and pose inference uses the analytic backend. `uvicorn` — a pure
+  ASGI server, not a framework — is all that is required, and it installs fine.
+
+> **Keeping it alive in the background:** Android aggressively reclaims
+> Termux processes. Run the server under `termux-wake-lock` and disable battery
+> optimisation for Termux if you want a long session.
+
+---
 
 ### Options
+
+Shared by both platforms.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -119,24 +181,26 @@ python -m spectraflow.server --udp-port 5500 --port 8000
 | `--simulate` | off | synthesize CSI instead of binding UDP |
 | `--window` | `5.0` | spectral analysis window, seconds |
 
-### Termux / Android notes
+`python -m spectraflow.server.app` works identically, as does the `spectraflow`
+console script once the package is installed.
 
-Everything runs on-device. Two environment quirks are handled automatically:
+> **Opening it from another device?** The server binds `127.0.0.1` by default,
+> so it is reachable only from the host itself. To browse from a phone or a
+> laptop on the same network, bind all interfaces:
+> `python -m spectraflow.server --simulate --host 0.0.0.0`, then browse to
+> `http://<host-lan-ip>:8000`.
 
-* **The native core is linked against `libpython`.** Termux's Python does not
-  export its symbols to `dlopen`-ed modules, so a normally-linked extension
-  builds but fails at import with `cannot locate symbol "PyExc_ImportError"`.
-  `setup.py` and `CMakeLists.txt` both detect Android and link `libpython`
-  explicitly.
-* **FastAPI and ONNX Runtime are optional.** `pydantic-core` (FastAPI's
-  dependency) and `onnxruntime` have no usable Android/aarch64 wheels, so the
-  server serves a **dependency-free ASGI application with identical routes and
-  payloads**, and pose inference uses the analytic backend. `uvicorn` — which is
-  a pure ASGI server, not a framework — is all that is required.
+### Firmware (either platform)
 
-To build the firmware: `pkg install esp-idf` or use the Espressif toolchain, then
-`idf.py set-target esp32 && idf.py build flash monitor`. See
-`firmware/esp32_csi_node/README.md`.
+Build with the Espressif toolchain, then flash one board as transmitter and one
+as receiver:
+
+```bash
+idf.py set-target esp32 && idf.py build flash monitor
+```
+
+See `firmware/esp32_csi_node/README.md` for wiring, channel selection and the
+destination IP/port configuration.
 
 ---
 
