@@ -3,19 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spectraflow // Micro-Motion Sensing</title>
+    <title>Spectraflow // Ambient Intelligence</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #06080d;
-            --card-bg: #0e1420;
+            --card-bg: #0d131f;
             --accent-color: #00ffcc;
-            --accent-glow: rgba(0, 255, 204, 0.2);
+            --accent-glow: rgba(0, 255, 204, 0.22);
             --danger-color: #ff3333;
+            --danger-glow: rgba(255, 51, 51, 0.25);
             --warn-color: #ffcc33;
+            --warn-glow: rgba(255, 204, 51, 0.22);
             --text-main: #f0f4f8;
             --text-muted: #6b7c96;
-            --border-color: rgba(0, 255, 204, 0.15);
+            --border-color: rgba(0, 255, 204, 0.14);
+            --dark-cyan: #2c6f77;              /* muted state colour */
+            --resp-period: 4s;                 /* default pulse duration (15 bpm) */
         }
         * { box-sizing: border-box; }
         body {
@@ -46,7 +50,7 @@
         }
         .card {
             background: var(--card-bg); border: 1px solid var(--border-color);
-            border-radius: 10px; padding: 16px; margin-bottom: 15px;
+            border-radius: 12px; padding: 16px; margin-bottom: 15px;
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -54,13 +58,128 @@
         .motion-indicator {
             width: 14px; height: 14px; border-radius: 50%;
             background-color: var(--accent-color); box-shadow: 0 0 10px var(--accent-color);
+            transition: background-color 0.5s ease, box-shadow 0.5s ease;
         }
-        .motion-text { font-size: 1rem; font-weight: bold; }
-        .presence-box {
-            font-size: 0.95rem; margin: 8px 0; padding: 8px; border-radius: 6px;
-            background: rgba(0,0,0,0.4); text-align: center;
-            border: 1px dashed var(--border-color);
+        .motion-text { font-size: 1rem; font-weight: bold; letter-spacing: 0.5px; }
+
+        /* ============ AMBIENT HUMAN FIGURE ============ */
+        .figure-card {
+            position: relative;
+            background:
+                radial-gradient(circle at 50% 34%, var(--accent-glow), transparent 62%),
+                var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 18px 16px 14px;
+            margin-bottom: 15px;
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden;
         }
+        .figure-card::before {                     /* soft floor-glow */
+            content: "";
+            position: absolute; left: 50%; bottom: -12px;
+            width: 55%; height: 42px; transform: translateX(-50%);
+            background: radial-gradient(ellipse at center, var(--accent-glow), transparent 70%);
+            opacity: 0.7; filter: blur(4px);
+            transition: opacity 0.6s ease, background 0.6s ease;
+        }
+        .figure-wrap { width: 100%; max-width: 210px; position: relative; }
+        #human-figure {
+            width: 100%; height: auto; display: block;
+            --glow-strength: 0px; --glow-color: transparent;
+            filter: drop-shadow(0 0 var(--glow-strength) var(--glow-color));
+            transition: color 0.6s ease, opacity 0.6s ease, filter 0.6s ease;
+        }
+        /* wireframe stroke colour inherits `currentColor` from the svg */
+        .figure-body {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2.2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            opacity: 1;
+            transition: opacity 0.6s ease;
+        }
+        #human-figure .spine { stroke-dasharray: 3 5; opacity: 0.5; }
+
+        /* ---- state classes ---- */
+        /* CLEAR : dim, semi-transparent, muted dark cyan outline */
+        #human-figure.state-clear {
+            color: var(--dark-cyan);
+            opacity: 0.5;
+            --glow-color: rgba(44, 111, 119, 0.25);
+            --glow-strength: 2px;
+        }
+        #human-figure.state-clear .figure-body { opacity: 0.85; }
+        #human-figure.state-clear .figure-pulse { opacity: 0; }
+
+        /* DETECTED (presence) : illuminated neon */
+        #human-figure.state-detected,
+        #human-figure.state-breathing {
+            color: var(--accent-color);
+            opacity: 1;
+            --glow-color: rgba(0, 255, 204, 0.6);
+            --glow-strength: 9px;
+        }
+        #human-figure.state-breathing { --glow-strength: 12px; }
+
+        /* MOTION : warm pulse */
+        #human-figure.state-motion {
+            color: var(--warn-color);
+            opacity: 1;
+            --glow-color: rgba(255, 204, 51, 0.6);
+            --glow-strength: 9px;
+        }
+        /* TARGET ALERT : danger */
+        #human-figure.state-target {
+            color: var(--danger-color);
+            opacity: 1;
+            --glow-color: rgba(255, 51, 51, 0.7);
+            --glow-strength: 12px;
+        }
+
+        /* ---- respiration chest pulse ---- */
+        .figure-pulse { opacity: 0; }
+        #chest-pulse {
+            fill: url(#chestGlow);
+            transform-box: fill-box;
+            transform-origin: center;
+            will-change: transform, opacity;
+        }
+        #human-figure.state-detected .figure-pulse,
+        #human-figure.state-breathing .figure-pulse {
+            opacity: 1;
+            animation: breathPulse var(--resp-period) ease-in-out infinite;
+        }
+        @keyframes breathPulse {
+            0%   { transform: scale(0.35); opacity: 0.95; }
+            50%  { transform: scale(2.6);  opacity: 0.10; }
+            100% { transform: scale(0.35); opacity: 0.95; }
+        }
+        /* target alert: slow danger blink on the whole figure */
+        #human-figure.state-target {
+            animation: alertBlink 1.1s ease-in-out infinite;
+        }
+        @keyframes alertBlink {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.45; }
+        }
+
+        .presence-label {
+            margin-top: 12px; font-size: 0.9rem; font-weight: bold;
+            text-align: center; letter-spacing: 1px;
+            color: var(--accent-color); text-shadow: 0 0 10px var(--accent-glow);
+            transition: color 0.5s ease;
+        }
+        .presence-label .sub {
+            display: block; font-weight: normal; font-size: 0.72rem;
+            color: var(--text-muted); letter-spacing: 1.5px; margin-top: 4px;
+            text-shadow: none;
+        }
+        .figure-card.state-clear  .presence-label { color: var(--dark-cyan); text-shadow: none; }
+        .figure-card.state-motion .presence-label { color: var(--warn-color); text-shadow: 0 0 10px var(--warn-glow); }
+        .figure-card.state-target .presence-label { color: var(--danger-color); text-shadow: 0 0 10px var(--danger-glow); }
+
         .metric-row { display: flex; justify-content: space-between; margin: 6px 0; color: var(--text-muted); font-size: 0.85rem; }
         .metric-value { color: var(--text-main); font-weight: bold; }
         .chart-container { position: relative; height: 150px; width: 100%; }
@@ -86,6 +205,12 @@
         .tier-btn.active { background: var(--accent-color); color: var(--bg-color); border-color: var(--accent-color); }
         footer { text-align: center; color: var(--text-muted); font-size: 0.75rem; margin-top: 5px; }
         footer span { color: var(--accent-color); }
+
+        /* accessibility + perf guardrails */
+        @media (prefers-reduced-motion: reduce) {
+            #human-figure, #chest-pulse, .figure-pulse { animation: none !important; }
+            #human-figure.state-target { animation: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -108,13 +233,50 @@
 
         <!-- Sensing -->
         <div id="tab-sensing" class="tab-content active">
+            <!-- Ambient human figure card -->
+            <div class="figure-card state-clear" id="figure-card">
+                <div class="figure-wrap">
+                    <svg id="human-figure" class="state-clear" viewBox="0 0 200 340"
+                         role="img" aria-label="Ambient presence figure">
+                        <defs>
+                            <radialGradient id="chestGlow">
+                                <stop offset="0%"  stop-color="#00ffcc" stop-opacity="0.9"/>
+                                <stop offset="55%" stop-color="#00ffcc" stop-opacity="0.35"/>
+                                <stop offset="100%" stop-color="#00ffcc" stop-opacity="0"/>
+                            </radialGradient>
+                        </defs>
+                        <!-- wireframe human silhouette -->
+                        <g class="figure-body">
+                            <circle cx="100" cy="40" r="23"/>              <!-- head -->
+                            <path d="M100 62 L100 73"/>                    <!-- neck -->
+                            <path d="M72 78 L128 78"/>                     <!-- clavicle -->
+                            <!-- torso -->
+                            <path d="M100 72 L72 78 C60 100 70 130 80 158 L120 158 C130 130 140 100 128 78 Z"/>
+                            <path d="M84 116 L116 116"/>                   <!-- waist -->
+                            <!-- arms -->
+                            <path d="M72 78 L66 110 L74 150"/>
+                            <path d="M128 78 L134 110 L126 150"/>
+                            <!-- legs -->
+                            <path d="M80 158 L84 235 L78 300 L70 306"/>
+                            <path d="M120 158 L116 235 L122 300 L130 306"/>
+                        </g>
+                        <path class="figure-body spine" d="M100 80 L100 152"/>  <!-- centre line -->
+                        <!-- respiration pulse overlay (chest) -->
+                        <g class="figure-pulse">
+                            <circle id="chest-pulse" cx="100" cy="108" r="24"/>
+                        </g>
+                    </svg>
+                </div>
+                <div class="presence-label" id="presence-label">
+                    AMBIENT · CLEAR
+                    <span class="sub" id="presence-sub">Human presence — none</span>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="status-header">
-                    <div class="motion-text" id="motion-status">State: STABLE</div>
+                    <div class="motion-text" id="motion-status">State: CLEAR</div>
                     <div class="motion-indicator" id="indicator-dot"></div>
-                </div>
-                <div class="presence-box" id="presence-box">
-                    Human Presence: <span id="presence-status" style="color: var(--accent-color);">Clear</span>
                 </div>
                 <div class="metric-row">
                     <span>Respiration:</span>
@@ -331,6 +493,58 @@
             }).catch(() => {});
         }, 10000);
 
+        // ================= AMBIENT FIGURE STATE MAPPING =================
+        // Maps a backend status label to a visual state class on the SVG figure.
+        function mapFigureState(status) {
+            const s = (status || '').toUpperCase();
+            if (s.indexOf('TARGET') !== -1) return 'state-target';
+            if (s === 'MOTION') return 'state-motion';
+            if (s === 'BREATHING') return 'state-breathing';
+            if (s === 'PRESENCE') return 'state-detected';
+            return 'state-clear';
+        }
+
+        // Drive the figure + card + presence label from an SSE payload.
+        function applyAmbientState(d) {
+            const state = d.status_label;
+            const cls = mapFigureState(state);
+            const isClear = cls === 'state-clear';
+
+            const figure = document.getElementById('human-figure');
+            const card = document.getElementById('figure-card');
+            figure.className = cls;                       // CLEAR dim vs DETECTED neon
+            card.className = 'figure-card ' + cls;        // drive floor-glow + label colour
+
+            // Presence label copy
+            const label = document.getElementById('presence-label');
+            const sub = document.getElementById('presence-sub');
+            if (d.target_alert) {
+                label.firstChild.nodeValue = 'TARGET ALERT';
+                sub.textContent = 'Watchlisted device present';
+            } else if (!isClear) {
+                label.firstChild.nodeValue = 'DETECTED';
+                sub.textContent = state === 'MOTION' ? 'Motion in the room'
+                    : (state === 'BREATHING' ? 'Respiration locked · ' + state
+                        : 'Human presence · ' + state);
+            } else {
+                label.firstChild.nodeValue = 'AMBIENT · CLEAR';
+                sub.textContent = 'Human presence — none';
+            }
+
+            // ---- respiration-synced chest pulse ----
+            const bpm = d.respiration_rate_bpm;
+            if (bpm > 0 && bpm <= 40) {
+                // one breath cycle every 60/bpm seconds (15 bpm -> 4s)
+                const period = (60 / bpm).toFixed(3) + 's';
+                figure.style.setProperty('--resp-period', period);
+                card.style.setProperty('--resp-period', period);
+            } else {
+                // no valid respiration -> suspend the pulse, keep figure static
+                figure.style.setProperty('--resp-period', '999s');
+                card.style.setProperty('--resp-period', '999s');
+            }
+        }
+
         // ---- SSE feed ----
         const eventSource = new EventSource('/stream');
         eventSource.onmessage = function(event) {
@@ -338,22 +552,18 @@
             const state = d.status_label;
 
             document.getElementById('motion-status').innerText = 'State: ' + state;
-            const presenceSpan = document.getElementById('presence-status');
             const dot = document.getElementById('indicator-dot');
 
+            // ambient figure reacts to the same stream
+            applyAmbientState(d);
+
             if (d.target_alert) {
-                presenceSpan.innerText = 'TARGET ALERT!';
-                presenceSpan.style.color = 'var(--danger-color)';
                 dot.style.backgroundColor = 'var(--danger-color)';
                 dot.style.boxShadow = '0 0 12px var(--danger-color)';
             } else if (d.human_detected) {
-                presenceSpan.innerText = 'Human Presence Detected';
-                presenceSpan.style.color = state === 'MOTION' ? 'var(--warn-color)' : 'var(--accent-color)';
                 dot.style.backgroundColor = state === 'MOTION' ? 'var(--warn-color)' : 'var(--accent-color)';
                 dot.style.boxShadow = '0 0 10px var(--warn-color)';
             } else {
-                presenceSpan.innerText = 'Clear';
-                presenceSpan.style.color = 'var(--accent-color)';
                 dot.style.backgroundColor = 'var(--accent-color)';
                 dot.style.boxShadow = '0 0 10px var(--accent-color)';
             }
