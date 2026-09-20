@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#05070d" />
+  <meta name="description" content="Spectraflow — real-time Wi-Fi CSI volumetric sensing: 3D skeleton, vitals and per-node signal domes." />
+  <title>Spectraflow · Wi-Fi CSI 3D sensing</title>
+
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <!-- Three.js is loaded as an ES module straight from the CDN. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <!-- WebGL canvas host: the renderer appends its <canvas> here. -->
+  <div id="viewport"></div>
+
+  <!-- Overlay layer: HUD panels and the error banner live here in the DOM. -->
+  <div id="overlay">
+    <div id="fatal-banner" class="banner glass" role="alert" hidden>
+      <h2 class="banner-title" data-banner-title>Something went wrong</h2>
+      <p class="banner-message" data-banner-message></p>
+      <p class="banner-detail" data-banner-detail hidden></p>
+      <button class="btn" type="button" data-banner-retry>Reload</button>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="banner glass" style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%)">
+      <h2 class="banner-title">JavaScript is disabled</h2>
+      <p class="banner-message">Spectraflow needs JavaScript and WebGL to render the CSI sensing volume.</p>
+    </div>
+  </noscript>
+
+  <!--
+    Boot watchdog.
+    A classic (non-module) script so it also runs when the module graph fails to
+    load at all — for example if the Three.js CDN is unreachable. It guarantees
+    the user sees an explanation instead of a blank screen.
+  -->
+  <script>
+  (function () {
+    window.__SF_BOOTED__ = false;
+
+    function reveal(title, message, detail) {
+      var banner = document.getElementById('fatal-banner');
+      if (!banner) return;
+      var titleNode = banner.querySelector('[data-banner-title]');
+      var messageNode = banner.querySelector('[data-banner-message]');
+      var detailNode = banner.querySelector('[data-banner-detail]');
+      if (titleNode && title) titleNode.textContent = title;
+      if (messageNode && message) messageNode.textContent = message;
+      if (detailNode) {
+        if (detail) {
+          detailNode.textContent = detail;
+          detailNode.hidden = false;
+        } else {
+          detailNode.hidden = true;
+        }
+      }
+      banner.hidden = false;
+      if (document.body && document.body.classList) {
+        document.body.classList.add('has-banner');
+      }
+    }
+
+    // Keep a reference for debugging; app.js owns the banner once it boots.
+    window.__sfRevealBanner = reveal;
+
+    window.addEventListener('error', function (event) {
+      if (window.__SF_BOOTED__) return;
+      var message = (event && event.message) ? event.message : 'A script failed to load.';
+      reveal(
+        'Spectraflow could not start',
+        'A required script did not load. This usually means the browser is offline, the Three.js CDN is blocked, or this page was opened directly from the filesystem instead of being served by the Spectraflow server.',
+        message
+      );
+    }, true);
+
+    setTimeout(function () {
+      if (window.__SF_BOOTED__) return;
+      var banner = document.getElementById('fatal-banner');
+      if (!banner || !banner.hidden) return;
+      reveal(
+        'Spectraflow is taking too long to start',
+        'The interface modules have not finished loading. Check that this page is served over http(s) by the Spectraflow server and that cdn.jsdelivr.net is reachable, then reload.',
+        'No boot confirmation received within 9 seconds.'
+      );
+    }, 9000);
+  })();
+  </script>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

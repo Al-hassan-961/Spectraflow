@@ -1,0 +1,55 @@
+# Spectraflow ESP32 CSI node - default sdkconfig for ESP-IDF v5.x.
+#
+# These values are applied when the project is configured for the first time.
+# Anything set later through "idf.py menuconfig" is kept in sdkconfig and is not
+# overwritten by this file.
+
+# ---------------------------------------------------------------------------
+# Wi-Fi CSI capture
+# ---------------------------------------------------------------------------
+# Enables the CSI feature of the Wi-Fi driver (esp_wifi_set_csi*). Note that CSI
+# allocates roughly CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM KB of RAM.
+CONFIG_ESP_WIFI_CSI_ENABLED=y
+
+# ---------------------------------------------------------------------------
+# CPU
+# ---------------------------------------------------------------------------
+# 240 MHz keeps the Wi-Fi task, the CSI callback and the UDP sender comfortably
+# within the timing budget at 100 frames/s.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+
+# ---------------------------------------------------------------------------
+# FreeRTOS
+# ---------------------------------------------------------------------------
+# 1 kHz ticks give the illuminator a stable 10 ms period at 100 frames/s.
+CONFIG_FREERTOS_HZ=1000
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_DEFAULT_LEVEL=3
+
+# ---------------------------------------------------------------------------
+# Wi-Fi driver buffers
+# ---------------------------------------------------------------------------
+# One additional static RX buffer is required per CSI capture slot, so the pool
+# is raised above the default of 10 to avoid dropping frames under load.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=64
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=64
+
+# Keep the Wi-Fi hot paths in IRAM: the CSI callback must never stall on a flash
+# cache miss while it holds the Wi-Fi task.
+CONFIG_ESP_WIFI_IRAM_OPT=y
+CONFIG_ESP_WIFI_RX_IRAM_OPT=y
+
+# ---------------------------------------------------------------------------
+# Power management
+# ---------------------------------------------------------------------------
+# Modem sleep must stay disabled for CSI (app_main also calls
+# esp_wifi_set_ps(WIFI_PS_NONE)); keep light sleep and tickless idle off so the
+# radio never leaves the sensing channel or stops timestamping.
+# CONFIG_PM_ENABLE is not set
+# CONFIG_FREERTOS_USE_TICKLESS_IDLE is not set

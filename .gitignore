@@ -1,6 +1,29 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Native extension build products (rebuild with: pip install -e . )
+*.so
+*.pyd
+*.dylib
+*.o
+*.a
+
+# Local data / runtime artifacts
 scans.db
 scans.db-wal
 scans.db-shm
 spectraflow_smoke.log
+*.log
+
+# ESP-IDF build output for the firmware component
+firmware/**/build/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
