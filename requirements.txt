@@ -1,47 +1,66 @@
 # Spectraflow production dependencies
 # ==================================
 #
-# Design rule: NumPy is the ONLY hard runtime dependency. Every DSP stage
+#   pip install -r requirements.txt
+#
+# This file lists ONLY what the pipeline genuinely requires, so the command
+# above succeeds on every supported host, including Termux/Android. Everything
+# else is an accelerator that is detected at import time -- see the commented
+# sections below and the `extras_require` table in setup.py.
+#
+# Design rule: NumPy is the only hard runtime dependency. Every DSP stage
 # (phase sanitization, clutter rejection, Butterworth filtering, STFT and the
 # spectral confidence metric) has a complete pure-NumPy implementation, so the
-# full pipeline runs with nothing else installed. The packages below are
-# accelerators and optional transports that are detected at import time; the
-# pipeline degrades gracefully when they are missing rather than failing.
+# full pipeline runs with nothing else installed.
 
-# --- required ---------------------------------------------------------------
 numpy>=1.22
-uvicorn>=0.20            # pure-ASGI server; serves both app flavours
+uvicorn>=0.20            # pure-ASGI server; serves the application
 
-# --- optional: native acceleration -----------------------------------------
-# Builds core/ into the `spectraflow_core` extension, which accelerates the
-# hot DSP primitives. Requires a C++17 compiler. Without it the NumPy path is
-# used and results are numerically identical.
-pybind11>=2.10
 
-# --- optional: real neural pose inference ----------------------------------
-# When absent (or when no model file is configured) spectraflow falls back to
-# its deterministic, CSI-driven analytic pose estimator.
+# ---------------------------------------------------------------------------
+# OPTIONAL -- not installed by default, and deliberately commented out.
 #
-# NOTE: there is no official onnxruntime wheel for Android/aarch64, which is
-# the reference Termux deployment, so the analytic estimator is the expected
-# path there.  Install with:  pip install onnxruntime
-onnxruntime>=1.16
+# These are NOT installable on every platform. Leaving them uncommented makes
+# `pip install -r requirements.txt` fail before it reaches them, which breaks
+# the documented install for a dependency that is not actually needed.
+# Install whichever you can use with the command shown next to it.
+# ---------------------------------------------------------------------------
 
-# --- optional: FastAPI flavour of the server -------------------------------
-# Spectraflow serves a dependency-free ASGI application by default, with
-# identical routes and payloads. FastAPI requires pydantic-core, whose Rust
-# build fails on Android/aarch64 (no prebuilt wheel), so on Termux the
-# dependency-free application is what runs. Nothing else changes.
+# Native DSP acceleration: builds core/ into the `spectraflow_core` extension.
+# Requires a C++17 compiler. Without it the NumPy path is used, with identical
+# numerical results.
+#   pip install pybind11 && pip install -e .
+# pybind11>=2.10
+
+# Real neural pose inference. Without it (or without a model file) the
+# deterministic CSI-driven analytic pose estimator is used instead.
 #
-# Install with:  pip install fastapi
-fastapi>=0.100
+# There is NO official onnxruntime wheel for Android/aarch64 -- the reference
+# Termux deployment -- so `pip install onnxruntime` fails there by design.
+#   pip install onnxruntime
+# onnxruntime>=1.16
 
-# --- optional: SciPy --------------------------------------------------------
-# Not used by the pipeline itself (the Butterworth design and IIR filtering are
-# implemented directly, in both C++ and NumPy, so results are reproducible
-# across backends). Listed only for downstream analysis and comparison work.
-# On Termux, scipy frequently fails to build for Android's Python.
+# FastAPI flavour of the server. Spectraflow serves a dependency-free ASGI
+# application by default with identical routes and payloads, so this is purely
+# a preference. FastAPI pulls in pydantic-core, whose Rust build fails on
+# Android/aarch64 (no prebuilt wheel).
+#   pip install fastapi
+# fastapi>=0.100
+
+# SciPy is not used by the pipeline at all: the Butterworth design and the IIR
+# filtering are implemented directly, in both C++ and NumPy, so results are
+# reproducible across backends. Listed only for downstream analysis work.
+#   pip install scipy
 # scipy>=1.9
 
-# --- development ------------------------------------------------------------
-pytest>=7.0
+
+# ---------------------------------------------------------------------------
+# Development / test
+# ---------------------------------------------------------------------------
+
+# The test-suite is the only thing that needs pytest:
+#   pip install pytest && pytest tests/ -q
+# pytest>=7.0
+#
+# Or install every extra at once (none of which are required):
+#   pip install -e ".[native,onnx,fastapi,dev]"

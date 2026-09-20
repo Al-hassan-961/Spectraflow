@@ -69,22 +69,46 @@ automatically at import time.
 ## Install & run
 
 ```bash
-pip install -r requirements.txt
-pip install -e .                 # optional: builds the native C++ core
+pip install -r requirements.txt      # numpy + uvicorn, nothing else
+pip install -e .                     # optional: builds the native C++ core
 ```
+
+`requirements.txt` installs only what the pipeline truly needs, so it succeeds
+on every supported host — including Termux, where `onnxruntime` and `fastapi`
+have no usable wheel. Those, and the native build, are commented out with their
+own install commands:
+
+```bash
+pip install pybind11 && pip install -e .   # native C++ core (faster DSP)
+pip install onnxruntime                    # real neural pose inference
+pip install fastapi                        # FastAPI flavour of the server
+pip install -e ".[native,onnx,fastapi,dev]"  # or all of them at once
+```
+
+Each is detected at import time; skipping any of them changes nothing but speed
+and which pose backend is used.
 
 No ESP32 hardware? Run the built-in physics simulator:
 
 ```bash
-python -m spectraflow.server.app --simulate
+python -m spectraflow.server --simulate
 # open http://127.0.0.1:8000
 ```
 
 With hardware attached:
 
 ```bash
-python -m spectraflow.server.app --udp-port 5500 --port 8000
+python -m spectraflow.server --udp-port 5500 --port 8000
 ```
+
+(`python -m spectraflow.server.app` works identically, as does the
+`spectraflow` console script once the package is installed.)
+
+> **Opening it from another device?** The server binds `127.0.0.1` by default,
+> so it is reachable only from the host itself. To browse from a phone or
+> laptop on the same network, bind all interfaces:
+> `python -m spectraflow.server --simulate --host 0.0.0.0`, then browse to
+> `http://<host-lan-ip>:8000`.
 
 ### Options
 
